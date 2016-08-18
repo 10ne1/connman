@@ -3750,6 +3750,19 @@ static GList *preferred_tech_list_get(void)
 	return tech_data.preferred_list;
 }
 
+bool __connman_service_always_connect(enum connman_service_type type)
+{
+	unsigned int *always_connected_techs =
+		connman_setting_get_uint_list("AlwaysConnectedTechnologies");
+	int i;
+
+	for (i = 0; always_connected_techs && always_connected_techs[i]; i++)
+		if (always_connected_techs[i] == type)
+			return true;
+
+	return false;
+}
+
 static bool auto_connect_service(GList *services,
 				enum connman_service_connect_reason reason,
 				bool preferred)
@@ -3757,6 +3770,7 @@ static bool auto_connect_service(GList *services,
 	struct connman_service *service = NULL;
 	bool ignore[MAX_CONNMAN_SERVICE_TYPES] = { };
 	bool autoconnecting = false;
+
 	GList *list;
 
 	DBG("preferred %d sessions %d reason %s", preferred, active_count,
@@ -3776,8 +3790,12 @@ static bool auto_connect_service(GList *services,
 		if (service->pending ||
 				is_connecting(service) ||
 				is_connected(service)) {
-			if (!active_count)
-				return true;
+			if (!active_count) {
+				if (__connman_service_always_connect(service->type))
+					continue;
+                                else
+					return true;
+                        }
 
 			ignore[service->type] = true;
 			autoconnecting = true;
