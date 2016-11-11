@@ -3750,6 +3750,19 @@ static GList *preferred_tech_list_get(void)
 	return tech_data.preferred_list;
 }
 
+static bool always_connect(enum connman_service_type type)
+{
+	unsigned int *always_connected_techs =
+		connman_setting_get_uint_list("AlwaysConnectedTechnologies");
+	int i;
+
+	for (i = 0; always_connected_techs && always_connected_techs[i]; i++)
+		if (always_connected_techs[i] == type)
+			return true;
+
+	return false;
+}
+
 static bool auto_connect_service(GList *services,
 				enum connman_service_connect_reason reason,
 				bool preferred)
@@ -3776,8 +3789,8 @@ static bool auto_connect_service(GList *services,
 		if (service->pending ||
 				is_connecting(service) ||
 				is_connected(service)) {
-			if (!active_count)
-				return true;
+			if (!active_count && !always_connect(service->type))
+					return true;
 
 			ignore[service->type] = true;
 			autoconnecting = true;
@@ -3799,7 +3812,9 @@ static bool auto_connect_service(GList *services,
 				CONNMAN_SERVICE_STATE_IDLE)
 			continue;
 
-		if (autoconnecting && !active_sessions[service->type]) {
+		if (autoconnecting &&
+				!active_sessions[service->type] &&
+				!always_connect(service->type)) {
 			DBG("service %p type %s has no users", service,
 				__connman_service_type2string(service->type));
 			continue;
@@ -3810,7 +3825,7 @@ static bool auto_connect_service(GList *services,
 
 		__connman_service_connect(service, reason);
 
-		if (!active_count)
+		if (!active_count && !always_connect(service->type))
 			return true;
 
 		ignore[service->type] = true;
